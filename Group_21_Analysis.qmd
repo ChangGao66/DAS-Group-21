@@ -1,0 +1,351 @@
+---
+title: "project2"
+editor: visual
+format:
+  html:
+    embed-resources: true
+  pdf: default
+message: false
+warning: false
+number-sections: true
+echo: false
+---
+
+# Introduction
+
+Email spam detection is a critical task in modern cybersecurity, as unwanted messages can pose risks ranging from phishing attacks to financial fraud. This study aims to identify key text characteristics that influence whether an email is classified as spam or not. Using the dataset from Hewlett-Packard Labs, we analyze 7 variables. The results show that "crt.tot", "dollar", "bang", "money", "n000" impact the results of classification significantly while the variable "make" is statistically insignificant.
+
+# EDA
+
+## Read data
+
+```{r}
+data <- read.csv("/Users/unparalle1ed/Desktop/filtered_data.csv")
+
+str(data)
+
+head(data)
+```
+
+Description of Variables:
+
+• crt.tot – Total length of uninterrupted sequences of capitals
+
+• dollar – Occurrences of the dollar sign, as a percentage of total number of characters
+
+• bang – Occurrences of ‘!’, as a percentage of total number of characters
+
+• money – Occurrences of ‘money’, as a percentage of total number of characters
+
+• n000 – Occurrences of the string ‘000’, as a percentage of total number of characters
+
+• make – Occurrences of ‘make’, as a percentage of total number of characters
+
+• yesno – A factor variable indicating if the email was spam, ‘y’, or not spam, ‘n’
+
+## Check for missing values
+
+```{r}
+colSums(is.na(data))#select the missing values
+```
+
+Here we can see that there are no missing values in the dataset.
+
+## Distribution of statistical variables
+
+```{r}
+table(data$yesno)
+
+summary(data)
+```
+
+## Variable distribution visualization
+
+```{r}
+library(ggplot2)
+
+numeric_vars <- c("crl.tot", "dollar", "bang", "money", "n000", "make")
+
+# Draw a histogram
+for (var in numeric_vars) {
+  p <- ggplot(data, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+    ggtitle(paste("Histogram of", var)) +
+    theme_minimal()
+  print(p)
+}
+
+
+```
+
+Since the last five explanatory variables represent the proportion of special characters or words in the total number of characters, they should be between 0 and 1. According to histograms, we can see some samples are greater than 1 which are outliers and should be removed.
+
+```{r}
+library(dplyr)
+
+# Filter out the rows where any of the last five variables have values greater than 1.
+filtered_data <- data %>%
+  filter(dollar < 1 & bang < 1 & money < 1 & n000 < 1 & make < 1)
+
+head(filtered_data)
+```
+
+## The relationship between variables
+
+```{r}
+# Correlation matrix
+cor_matrix <- cor(filtered_data[, 1:6])
+print(cor_matrix)
+
+```
+
+Most of the correlations between the variables are weak, with values generally below 0.5, indicating that they don't have strong relationships with each other.
+
+## Analyze the relationship between spam and features
+
+```{r}
+library(ggplot2)
+library(tidyr)
+
+# Spam statistics vs. non-spam data distribution
+spam_data <- filtered_data[filtered_data$yesno == "y", ]
+non_spam_data <- filtered_data[filtered_data$yesno == "n", ]
+
+# Calculate the average of spam and non-spam
+spam_means <- colMeans(spam_data[, 1:6])
+non_spam_means <- colMeans(non_spam_data[, 1:6])
+
+# Convert data
+df_means <- data.frame(
+  Variable = rep(names(spam_means), 2),
+  MeanValue = c(spam_means, non_spam_means),
+  Type = rep(c("Spam", "Non-Spam"), each = length(spam_means))
+)
+
+# Draw a segmented column chart
+ggplot(df_means, aes(x = Variable, y = MeanValue, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ Variable, scales = "free", ncol = 2) + 
+  labs(title = "Comparison of Spam vs Non-Spam Feature Means",
+       x = "Feature",
+       y = "Mean Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+```
+
+This chart compares the mean values of different text features between spam and non-spam emails. bang ("!"), dollar ("\$"), money ("money" ), n000 ('000"), and make ("make") all have significantly higher mean values in spam emails compared to non-spam emails; crl.tot (Total length of uninterrupted sequences of capitals) is also much higher in spam emails, indicating that spam emails tend to contain more uninterrupted sequences of capitals.
+
+# Formal analysis
+
+## Determine model type
+
+## Data preprocessing
+
+```{r}
+filtered_data$yesno <- as.factor(filtered_data$yesno)
+
+```
+
+## Train the GLM logistic regression model
+
+```{r}
+glm_model <- glm(yesno ~ crl.tot + dollar + bang + money + n000 + make, 
+                 data = filtered_data, 
+                 family = binomial(link = "logit"))
+
+summary(glm_model)
+
+```
+
+Here we can note that the coefficient of variable "crl.tot" is 0.0007084 but statistically significant with a p-value of 0.0076, so we scale down crl.tot by a factor of 1000 to make the coefficient greater. In addition, we turn decimals of the last five explanatory variables into percentages.
+
+```{r}
+filtered_data <- filtered_data %>%
+  mutate(crl.tot = crl.tot / 1000) %>%  # Scale down crl.tot by a factor of 1000
+  mutate(across(c(dollar, bang, money, n000, make), ~ . * 100))  #to be percentage
+glm_model <- glm(yesno ~ crl.tot + dollar + bang + money + n000 + make, 
+                 data = filtered_data, 
+                 family = binomial(link = "logit"))
+
+summary(glm_model)
+
+```
+
+The logistic regression equation is:
+
+```{r}
+coefficients <- coef(glm_model)
+
+#LaTeX formula
+latex_formula <- paste0(
+  "$$\\log\\left(\\frac{P(\\text{yesno} = 1)}{1 - P(\\text{yesno} = 1)}\\right) = ", 
+  round(coefficients[1], 2), " + ", round(coefficients[2], 2), " \\cdot \\text{crl.tot} + ",
+  round(coefficients[3], 2), " \\cdot \\text{dollar} + ", 
+  round(coefficients[4], 2), " \\cdot \\text{bang} + ",
+  round(coefficients[5], 2), " \\cdot \\text{money} + ",
+  round(coefficients[6], 2), " \\cdot \\text{n000} + ",
+  round(coefficients[7], 2), " \\cdot \\text{make} $$"
+)
+
+# print LaTeX formula
+cat(latex_formula)
+```
+
+Coefficients Interpretation:
+
+The coefficient of variable "crl.tot" is 0.71, statistically significant with a p-value of 0.01. For increasing every 1000 uninterrupted sequences of capitals, the log-odds of the email being spam increased by 0.71.
+
+The coefficient of variable "dollar" is 0.10 with a p-value of 0.00, indicating it has statistically significant effect on dependent variable. For every 1% increase in percentage of "\$", the log-odds of the email being spam increased by 0.1.
+
+The coefficient of variable "bang" is 0.04 with a p-value of 0.00, suggesting that it has statistically significant effect on dependent variable. For every 1% increase in percentage of "!", the log-odds of the email being spam increased by 0.04.
+
+The coefficient of variable "money" is 0.05 with a p-value of 0.00. It also has a significant positive effect on the outcome. For every 1% increase in percentage of "money", the log-odds of the email being spam increased by 0.05.
+
+The coefficient for n000 is 0.05, with a p-value of 0.00, indicating a positive and significant effect on the log-odds of the outcome. For every 1% increase in percentage of "000", the log-odds of the email being spam increased by 0.05.
+
+The variable "make" has a coefficient(0.002) with a p-value of 0.78, which is not statistically significant.
+
+## Calculate VIF
+
+```{r}
+library(car)
+vif(glm_model)
+
+```
+
+The results indicate that all variables have very low VIF values (≈1), suggesting that there is little to no multicollinearity between the variables.
+
+## Calculate goodness of fit
+
+AIC
+
+```{r}
+AIC(glm_model)
+
+```
+
+Goodness of fit
+
+```{r}
+library(pscl)
+pR2(glm_model)
+
+```
+
+McFadden's R² = 0.4125058, indicating the model is a relatively good fit.
+
+## Predictive spam
+
+```{r}
+# Calculate the prediction probability
+filtered_data$predicted_prob <- predict(glm_model, type = "response")
+
+# Convert the prediction result to Spam/Non-Spam (0.5 is the threshold)
+filtered_data$predicted_class <- ifelse(filtered_data$predicted_prob > 0.5, "y", "n")
+
+# Calculation accuracy
+accuracy <- mean(filtered_data$predicted_class == filtered_data$yesno)
+print(paste("accuracy:", round(accuracy * 100, 2), "%"))
+
+```
+
+It means that the model correctly predicted the class for about 85.27% of the samples. We consider it is a good result.
+
+## Importance analysis of variables
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Extract the regression coefficient
+coefs <- summary(glm_model)$coefficients
+
+# Calculate the standardization coefficient (importance of variables) and remove the intercept
+var_importance <- data.frame(
+  Variable = rownames(coefs),
+  Coefficient = abs(coefs[, "Estimate"])
+) %>%
+  filter(Variable != "(Intercept)") %>%  # Remove intercept
+  arrange(desc(Coefficient))
+
+# Draw a bar chart of the importance of variables
+ggplot(var_importance, aes(x = reorder(Variable, Coefficient), y = Coefficient, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance (Standardized Coefficients)", x = "Feature", y = "Importance") +
+  theme_minimal()
+```
+
+## Cross verification
+
+```{r}
+library(caret)
+
+# Define 10fold cross validation
+train_control <- trainControl(method = "cv", number = 10)
+
+# Train logistic regression model + cross validation
+cv_model <- train(yesno ~ crl.tot + dollar + bang + money + n000 + make, 
+                  data = filtered_data, 
+                  method = "glm", 
+                  family = binomial(link = "logit"),
+                  trControl = train_control)
+
+print(cv_model)
+
+```
+
+## Cross-verify the importance of variables in GLM
+
+```{r}
+library(caret)
+
+var_imp <- varImp(cv_model)
+
+plot(var_imp, main = "Feature Importance in Spam Detection")
+
+```
+
+## Confusion matrix
+
+```{r}
+conf_matrix <- confusionMatrix(as.factor(filtered_data$predicted_class), filtered_data$yesno)
+
+print(conf_matrix)
+
+```
+
+Confusion Matrix:
+
+True Negatives (TN) = 504: The model correctly predicted n (negative class); True Positives (TP) = 185: The model correctly predicted y (positive class); False Negatives (FN) = 31: The model incorrectly classified y as n; False Positives (FP) = 88: The model incorrectly classified n as y.
+
+Accuracy = 0.8527 means that 85.27% of the model's predictions were correct.
+
+Kappa = 0.6531 indicates moderate agreement. A higher Kappa value would indicate better agreement, while a lower value suggests poorer performance.
+
+Sensitivity = 94.21% means the model successfully identifies 94.21% of all spam emails.
+
+Specificity: = 67.77% indicates the model correctly identifies 67.77% of non-spam emails.
+
+Positive Predictive Value = 85.14% means that when the model predicts an email as spam, 85.14% of the time it is actually spam.
+
+Negative Predictive Value = 85.65% means that when the model predicts an email as non-spam, 85.65% of the time it is actually non-spam.
+
+Prevalence represents the proportion of the positive class (spam emails) in the dataset. In this case, 66.21% of the emails in the dataset are spam.
+
+Detection Rate = 62.38% indicates that the model detected 62.38% of the spam emails in the dataset.
+
+Detection Prevalence = 73.27% means the model predicts 73.27% of the emails as spam.
+
+Balanced Accuracy = 80.99% means that the model's balanced performance is 80.99%.
+
+# Conclusion
+
+This model was built to figure out the text characteristics that influence an email to be classified as spam. By performing logistic regression, we know that "crt.tot", "dollar", "bang", "money", "n000" impact the results of classification significantly while the variable "make" is statistically insignificant.
+
+The model indicates that for increasing every 1000 uninterrupted sequences of capitals, the log-odds of the email being spam increased by 0.71; for every 1% increase in percentage of "\$", the log-odds of the email being spam increased by 0.1; for every 1% increase in percentage of "!", the log-odds of the email being spam increased by 0.04; for every 1% increase in percentage of "money", the log-odds of the email being spam increased by 0.05; for every 1% increase in percentage of "000", the log-odds of the email being spam increased by 0.05.
+
+Some classification Metrics were used to evaluate the model. The model performs well overall with an accuracy of 85.27% and a high sensitivity of 94.21%.
+
+In conclusion, the logistic regression model performed well on the current dataset and provided valuable insights into predicting the target variable. However, further tuning and experimentation with alternative models could enhance model performance such us applying regularization techniques and trying more complex models(e.g.,decision trees, random forests, gradient boosting, etc.)
