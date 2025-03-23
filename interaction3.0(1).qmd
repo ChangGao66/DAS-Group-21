@@ -1,0 +1,99 @@
+---
+title: "branch"
+editor: visual
+format:
+  html:
+    embed-resources: true
+  pdf: default
+message: false
+warning: false
+number-sections: true
+echo: false
+---
+
+## Read data
+
+```{r}
+data <- read.csv("D:/desktop/Group 21 project 2/filtered_data.csv")
+summary(data)
+```
+
+## Data preprocessing
+
+```{r}
+data$yesno <- as.factor(data$yesno)
+```
+
+## Train the original logistic regression model and calculate the goodness of fit
+
+```{r}
+install.packages("jtools")
+library(jtools)
+data$crl.tot_scaled <- data$crl.tot / 1000
+
+glm_model <- glm(yesno ~ crl.tot_scaled + dollar + bang + money + n000 + make, 
+                        data = data, 
+                        family = binomial(link = "logit"))
+summary(glm_model)
+```
+
+## Check the original model for multicollinearity
+
+```{r}
+install.packages("car")
+library(car)
+vif(glm_model)
+```
+
+Conclusion: From this output, we can see that the VIF values ​​of all variables are small (much less than 5), and no single variable has a high VIF value, which indicates that there is no significant multicollinearity problem between the independent variables in the model.
+
+## Train a logistic regression model with interaction terms and calculate goodness of fit
+
+```{r}
+glm_interaction <- glm(yesno ~ data$crl.tot_scaled * bang + dollar + money + n000 + make, data = data, family = binomial)
+
+summary(glm_interaction)
+```
+
+## Checking for multicollinearity in models with interaction terms
+
+```{r}
+install.packages("car")
+library(car)
+vif(glm_interaction)
+```
+
+Conclusion: The VIF value of the interaction term crl.tot\*bang is about 1.84, which does not show serious collinearity, so it can continue to be retained in the model.
+
+## Comparison of AIC between the original model and the model with interaction terms
+
+```{r}
+AIC(glm_model,glm_interaction)
+```
+
+Conclusion: Compared with the AIC value of glm_model, the AIC value of glm_interaction is relatively low, indicating that after the introduction of the interaction term, the goodness of fit of the model is improved compared with the original model.
+
+## Significance analysis of interaction terms
+
+```{r}
+install.packages("pscl")
+library(pscl)
+model_r2 <- pR2(glm_interaction)
+print(model_r2)
+```
+
+Conclusion: Since the p-value is much less than 0.05, we can conclude that the interaction term has a significant effect on the classification of spam.
+
+## Predictive spam
+
+```{r}
+# 计算预测概率
+data$predicted_prob <- predict(glm_interaction, type = "response")
+
+# 将预测结果转换为 Spam / Non-Spam（0.5 为阈值）
+data$predicted_class <- ifelse(data$predicted_prob > 0.5, "y", "n")
+
+# 计算准确率
+accuracy <- mean(data$predicted_class == data$yesno)
+print(paste("模型准确率:", round(accuracy * 100, 2), "%"))
+```
