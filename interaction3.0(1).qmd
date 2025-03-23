@@ -87,13 +87,13 @@ Conclusion: Since the p-value is much less than 0.05, we can conclude that the i
 ## Predictive spam
 
 ```{r}
-# 计算预测概率
+# Calculate predicted probabilities
 data$predicted_prob <- predict(glm_interaction, type = "response")
 
-# 将预测结果转换为 Spam / Non-Spam（0.5 为阈值）
+# Convert the prediction results to Spam / Non-Spam (0.5 is the threshold)
 data$predicted_class <- ifelse(data$predicted_prob > 0.5, "y", "n")
 
-# 计算准确率
+# Calculate accuracy
 accuracy <- mean(data$predicted_class == data$yesno)
-print(paste("模型准确率:", round(accuracy * 100, 2), "%"))
+print(paste("Model Accuracy:", round(accuracy * 100, 2), "%"))
 ```
