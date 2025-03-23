@@ -1,0 +1,4 @@
+Email spam detection is a critical task in modern cybersecurity, as unwanted messages can pose risks ranging from phishing attacks to financial fraud. This study aims to identify key text characteristics that influence whether an email is classified as spam or not. Using the dataset from Hewlett-Packard Labs, we analyze 7 variables. The results show that "crt.tot", "dollar", "bang", "money", "n000" impact the results of 
+classification significantly while the variable "make" is statistically insignificant.
+Compared to the previous analysis, we know that crl.tot and bang are significant key factors. We want to further explore the interaction effect of these two factors on our research question. Therefore, we set the interaction term as crl.tot * bang.
+Compared to the glm_model and the glm_interaction, it indicating that the model fit has improved after introducing the interaction terms.
